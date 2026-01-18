@@ -644,7 +644,9 @@
             currentGMId = id;
             isGM = (id === myId);
             updateView();
-            refreshLobbyList(); // Refresh to hide new GM
+            // Force refresh of specific lists that depend on GM ID
+            if (isGM) refreshGMPlayerList();
+            refreshLobbyList();
         });
 
         // Listen for GM Requests (Admin only)
@@ -689,7 +691,7 @@
         let playerCache = {};
         state.get('players').map().on((p, id) => {
             if (!p) { delete playerCache[id]; }
-            else { playerCache[id] = p; }
+            else { playerCache[id] = { ...p, id }; } // Store ID inside object
 
             if (isGM) refreshGMPlayerList();
             if (myRole === 'imposter') refreshKillTargets();
@@ -806,7 +808,15 @@
             if (!nameInput) return alert("Enter a name!");
             myName = nameInput;
             localStorage.setItem('player-name', myName);
-            state.get('players').get(myId).put({ name: myName, dead: false, role: 'crew', killUsed: false, meetingsMax: 1 });
+            // Join without role/tasks
+            state.get('players').get(myId).put({
+                name: myName,
+                dead: false,
+                role: 'joining',
+                roleTitle: 'JOINING',
+                killUsed: false,
+                meetingsMax: 1
+            });
             updateView();
         }
 
@@ -1104,12 +1114,18 @@
             const meetBtn = document.getElementById('meeting-btn');
 
             title.innerText = myRoleTitle.toUpperCase();
-            title.style.color = (myRole === 'imposter') ? 'var(--imposter-red)' : 'var(--crewmate-blue)';
 
-            if (myRole === 'imposter') {
+            if (myRole === 'joining' || !gameStarted) {
+                title.innerText = "WAITING...";
+                title.style.color = "var(--text-dim)";
+                crewView.style.display = 'block';
+                impView.style.display = 'none';
+            } else if (myRole === 'imposter') {
+                title.style.color = 'var(--imposter-red)';
                 crewView.style.display = 'none';
                 impView.style.display = 'block';
             } else {
+                title.style.color = 'var(--crewmate-blue)';
                 crewView.style.display = 'block';
                 impView.style.display = 'none';
             }
@@ -1138,6 +1154,12 @@
             const list = document.getElementById('my-task-list');
             if (!list) return;
             list.innerHTML = '';
+
+            if (myTaskList.length === 0) {
+                list.innerHTML = '<p style="color:var(--text-dim); text-align:center; padding:20px;">Waiting for Game Start/Role Assignment...</p>';
+                return;
+            }
+
             myTaskList.forEach(t => {
                 const div = document.createElement('div');
                 div.className = `task-item ${t.done ? 'done' : ''}`;
