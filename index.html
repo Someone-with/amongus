@@ -576,6 +576,25 @@
         });
         setInterval(() => state.get('conn-ping').put(Date.now()), 5000);
 
+        // --- AUTO-SYNC HEARTBEAT ---
+        // Pushes state every 3s to keep graph alive and sync pending changes
+        setInterval(() => {
+            if (myName && !isGM) {
+                state.get('players').get(myId).once(p => {
+                    if (p) state.get('players').get(myId).put(p);
+                });
+            }
+        }, 3000);
+
+        // Aggressive GM Refresh (Every 5s)
+        setInterval(() => {
+            if (isGM) {
+                refreshApprovalQueue();
+                refreshGMInbox();
+                refreshGMPlayerList();
+            }
+        }, 5000);
+
         const PREDEFINED_ROLES = [
             { title: "Runner", desc: "Run through the map as fast as you can!" },
             { title: "Detective", desc: "You can ask the GM ONE yes/no question during the game." },
