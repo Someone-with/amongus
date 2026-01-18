@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Among Us Real-Life Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0b0e14;
+            --panel-bg: rgba(20, 25, 35, 0.9);
+            --crewmate-blue: #38fedc;
+            --imposter-red: #ff4d4d;
+            --gold: #ffd700;
+            --text-main: #ffffff;
+            --text-dim: #a0a0a0;
+            --neon-shadow: 0 0 15px rgba(56, 254, 220, 0.3);
+            --red-glow: 0 0 20px rgba(255, 77, 77, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(circle at center, #1a1f2c 0%, #0b0e14 100%);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- UI COMPONENTS --- */
+        .container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            padding-bottom: 100px;
+            flex-grow: 1;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+        }
+
+        .title-gradient {
+            background: linear-gradient(45deg, var(--crewmate-blue), #50a7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* --- SCREENS --- */
+        .screen {
+            display: none;
+            width: 100%;
+        }
+
+        .screen.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- BUTTONS --- */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .btn-primary {
+            background: var(--crewmate-blue);
+            color: #000;
+            box-shadow: var(--neon-shadow);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+
+        .btn-danger {
+            background: var(--imposter-red);
+            color: white;
+            box-shadow: var(--red-glow);
+        }
+
+        .btn-danger:disabled {
+            filter: grayscale(1);
+            opacity: 0.5;
+        }
+
+        .btn-dim {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* --- FORM INPUTS --- */
+        input {
+            width: 100%;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--crewmate-blue);
+        }
+
+        /* --- LISTS --- */
+        .task-item {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s;
+        }
+
+        .task-item.done {
+            opacity: 0.5;
+            border-color: var(--crewmate-blue);
+        }
+
+        .checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--crewmate-blue);
+            border-radius: 6px;
+            margin-right: 15px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .checkbox.checked::after {
+            content: '✔';
+            position: absolute;
+            left: 4px;
+            top: -2px;
+            color: var(--crewmate-blue);
+        }
+
+        /* --- OVERLAYS --- */
+        #dead-overlay,
+        #sabotage-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+        #dead-overlay {
+            background: #ff0000;
+            color: white;
+            animation: pulseRed 2s infinite;
+        }
+
+        #sabotage-overlay {
+            background: rgba(255, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 4px solid var(--imposter-red);
+        }
+
+        @keyframes pulseRed {
+            0% {
+                background: #4a0000;
+            }
+
+            50% {
+                background: #8e0000;
+            }
+
+            100% {
+                background: #4a0000;
+            }
+        }
+
+        /* --- ADMIN/GM STUFF --- */
+        .player-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .role-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .badge-crew {
+            background: var(--crewmate-blue);
+            color: black;
+        }
+
+        .badge-imp {
+            background: var(--imposter-red);
+            color: white;
+        }
+
+        .localhost-panel {
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            margin-left: 8px;
+        }
+
+        .status-dead {
+            background: var(--imposter-red);
+            color: white;
+        }
+
+        /* --- CONNECTION STATUS --- */
+        #conn-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4d4d;
+            box-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
+            z-index: 2000;
+            transition: background 0.3s;
+        }
+
+        #conn-status.online {
+            background: #38fedc;
+            box-shadow: 0 0 10px rgba(56, 254, 220, 0.5);
+        }
+
+        .storage-warning {
+            background: #ff4d4d;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 3000;
+        }
+
+        .approval-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-box {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-msg {
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            padding-bottom: 3px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="storage-error" class="storage-warning">
+        <strong>CRITICAL:</strong> Browser tracking protection is blocking data storage.
+        Please enable "Cookies and Site Data" in your browser settings to play.
+    </div>
+
+    <div id="conn-status" title="Connection Status"></div>
+
+    <audio id="sound-kill" src="https://www.myinstants.com/media/sounds/among-us-kill.mp3" preload="auto"></audio>
+    <audio id="sound-alert" src="https://www.myinstants.com/media/sounds/among-us-sabotage.mp3" preload="auto"></audio>
+
+    <div id="dead-overlay">
+        <h1 style="font-size: 4rem;">ELIMINATED</h1>
+        <p>You have been killed. Do not speak!</p>
+        <button class="btn btn-dim" style="margin-top:40px; border-color:white; color:white; width:200px;"
+            onclick="quitGame()">QUIT SHIP</button>
+    </div>
+
+    <div id="sabotage-overlay">
+        <h2 style="color: var(--imposter-red); font-size: 2rem;">SABOTAGE ACTIVE</h2>
+        <p id="sabotage-desc" style="font-size: 1.2rem; margin: 10px 0;"></p>
+        <button class="btn btn-primary" onclick="resolveSabotage()">FIX SYSTEM</button>
+    </div>
+
+    <div id="meeting-overlay"
+        style="position:fixed; top:0; left:0; right:0; bottom:0; z-index:1100; background:rgba(0,0,255,0.9); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
+        <h1 style="font-size:3rem; color:white; margin-bottom:10px;">MEETING</h1>
+        <p id="meeting-caller" style="font-size:1.2rem; color:white; opacity:0.8;"></p>
+
+        <div id="meeting-timer-box"
+            style="margin: 20px 0; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 20px; width: 100%; max-width: 400px;">
+            <h2 id="meeting-phase-title" style="color:var(--gold);">DISCUSSION</h2>
+            <div id="meeting-timer" style="font-size: 4rem; font-weight: 900; color:white;">00:00</div>
+        </div>
+
+        <div id="voting-ui" style="display:none; width: 100%; max-width: 400px;">
+            <h3 style="margin-bottom:10px; color:white;">VOTE FOR SUSPECT:</h3>
+            <div id="voting-list"></div>
+            <button class="btn btn-dim" style="margin-top:10px; border-color:var(--gold); color:var(--gold);"
+                onclick="castVote('skip')">SKIP VOTE</button>
+        </div>
+
+        <button class="btn btn-dim" style="width:200px; margin-top:20px;"
+            onclick="document.getElementById('meeting-overlay').style.display='none'">CLOSE DASHBOARD</button>
+    </div>
+
+    <div class="container">
+        <!-- LOCALHOST ADMIN -->
+        <div id="admin-panel" class="localhost-panel">
+            <strong>ADMIN SYSTEM (LOCAL)</strong>
+            <div id="gm-requests">Looking for GM requests...</div>
+        </div>
+
+        <!-- JOIN SCREEN -->
+        <div id="screen-join" class="screen active">
+            <div class="card">
+                <h1>REAL LIFE <span class="title-gradient">AMONG US</span></h1>
+                <p style="color: var(--text-dim); margin-bottom: 2rem;">Enter your name to join the ship.</p>
+                <input type="text" id="join-name" placeholder="YOUR NAME..." maxlength="12">
+                <button class="btn btn-primary" onclick="joinGame()">ENTER SHIP</button>
+
+                <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+                    <p style="color: var(--text-dim); font-size: 0.8rem; margin-bottom: 10px;">GM ACCESS CODE</p>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="password" id="gm-code-input" placeholder="CODE..." style="margin-bottom: 0;">
+                        <button class="btn btn-dim" style="width: 80px; margin-bottom: 0;"
+                            onclick="claimGM()">GO</button>
+                    </div>
+                </div>
+            </div>
+            <div id="join-status" style="text-align: center; color: var(--gold);"></div>
+        </div>
+
+        <!-- DASHBOARD (CREW/IMP) -->
+        <div id="screen-dashboard" class="screen">
+            <div class="card" id="role-card">
+                <p style="color: var(--text-dim); font-size: 0.8rem;">IDENTITY</p>
+                <h1 id="my-role-title">CREWMATE</h1>
+                <p id="my-role-desc" style="color: var(--text-dim); font-size: 0.9rem; margin-top: 5px;"></p>
+            </div>
+
+            <!-- CREW VIEW -->
+            <div id="crew-tasks" style="display: none;">
+                <div class="card">
+                    <h3>Your Tasks</h3>
+                    <div id="my-task-list"></div>
+                </div>
+            </div>
+            <!-- IMPOSTER VIEW -->
+            <div id="imposter-powers" style="display: none;">
+                <div class="card">
+                    <h3 style="color: var(--imposter-red);">SABOTAGE</h3>
+                    <button class="btn btn-danger" onclick="triggerSabotage('Reactor Meltdown')">REACTOR
+                        MELTDOWN</button>
+                    <button class="btn btn-danger" onclick="triggerSabotage('Oxygen Depletion')">O2 DEPLETION</button>
+                    <button class="btn btn-danger" onclick="triggerSabotage('Comms interference')">COMMS OUT</button>
+                </div>
+
+                <div class="card">
+                    <h3 style="color: var(--imposter-red);">REMOTE KILL</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 10px;">Targets must be approved
+                        by GM.</p>
+                    <div id="kill-targets-list"></div>
+                    <button id="kill-btn" class="btn btn-danger" style="margin-top: 10px; display: none;"
+                        onclick="requestKill()">REQUEST KILL</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>VITAL TRIGGERS</h3>
+                <button id="meeting-btn" class="btn btn-primary" style="background:#50a7ff; margin-bottom:10px;"
+                    onclick="triggerEmergency()">EMERGENCY MEETING</button>
+                <button class="btn btn-primary" style="background:var(--gold); color:black;"
+                    onclick="requestReport()">REPORT DEAD BODY</button>
+            </div>
+
+            <div class="card">
+                <h3>MESSAGE GM</h3>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="player-msg-input" placeholder="Secret message..." style="margin-bottom: 0;">
+                    <button class="btn btn-dim" style="width: 80px; margin-bottom: 0;"
+                        onclick="sendMessageToGM()">SEND</button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-dim" style="flex: 1;" onclick="location.reload()">REFRESH</button>
+                <button class="btn btn-dim"
+                    style="flex: 1; border-color: var(--imposter-red); color: var(--imposter-red);"
+                    onclick="quitGame()">QUIT SHIP</button>
+            </div>
+        </div>
+
+        <!-- GM PANEL -->
+        <div id="screen-gm" class="screen">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <h2 style="color:var(--gold);">APPROVAL QUEUE</h2>
+                    <button class="btn btn-dim"
+                        style="width: auto; padding: 5px 10px; border-color:var(--imposter-red); color:var(--imposter-red);"
+                        onclick="resetGame()">WIPE ALL DATA</button>
+                </div>
+                <div id="gm-approval-queue" style="margin-top:15px;">
+                    <p style="color:var(--text-dim); font-size:0.9rem;">No pending approvals...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 style="color:var(--gold);">GM INBOX</h2>
+                <div id="gm-inbox" class="chat-box"></div>
+                <button class="btn btn-dim" style="padding:5px;"
+                    onclick="state.get('messages').map().once((d,k)=>state.get('messages').get(k).put(null))">CLEAR
+                    INBOX</button>
+            </div>
+
+            <div class="card">
+                <h3>GM GAME CONTROLS</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-primary" style="background:#50a7ff;"
+                        onclick="state.get('meeting').put({ active: true, caller: 'GM (Force)', startTime: Date.now(), phase: 'discussion' })">FORCE
+                        MEETING</button>
+                    <button class="btn btn-primary" style="background:var(--gold); color:black;"
+                        onclick="assignRoles()">ROLL ROLES</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <h3>Players</h3>
+                </div>
+
+                <div style="margin-top: 10px;">
+                    <div id="gm-player-list"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="gm-start-btn" class="btn btn-primary" style="flex: 2; background:var(--gold); color:black;"
+                    onclick="startGame()">START GAME</button>
+                <button class="btn btn-dim"
+                    style="flex: 1; border-color: var(--imposter-red); color: var(--imposter-red);"
+                    onclick="quitGame()">QUIT SHIP</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- INITIALIZATION ---
+        // Test storage access first
+        function checkStorage() {
+            try {
+                localStorage.setItem('storage-test', 'ok');
+                localStorage.removeItem('storage-test');
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        if (!checkStorage()) {
+            document.getElementById('storage-error').style.display = 'block';
+        }
+
+        // Using multiple relays for stability (Fix 503 errors)
+        const relays = [
+            'https://gun-manhattan.herokuapp.com/gun',
+            'https://relay.peer.ooo/gun',
+            'https://gun-uswest.herokuapp.com/gun',
+            'https://gun-ams1.herokuapp.com/gun',
+            'https://gun-matrix.herokuapp.com/gun',
+            'https://gun-armory.herokuapp.com/gun',
+            'https://gun-sp.herokuapp.com/gun',
+            'https://gun-sjc1.herokuapp.com/gun',
+            'https://gun-sjc2.herokuapp.com/gun'
+        ];
+        const gun = Gun(relays);
+        const state = gun.get('among-us-real-life-v2-stable');
+
+        // Connection monitoring
+        state.get('conn-ping').on(d => {
+            const dot = document.getElementById('conn-status');
+            dot.classList.add('online');
+            clearTimeout(window.connTimeout);
+            window.connTimeout = setTimeout(() => dot.classList.remove('online'), 10000);
+        });
+        setInterval(() => state.get('conn-ping').put(Date.now()), 5000);
+
+        const PREDEFINED_ROLES = [
+            { title: "Runner", desc: "Run through the map as fast as you can!" },
+            { title: "Detective", desc: "You can ask the GM ONE yes/no question during the game." },
+            { title: "GameController", desc: "Your mission is to fix the controller/playstation area." },
+            { title: "Washer", desc: "Keep the ship clean! Fix the washing and dryer." },
+            { title: "Chef", desc: "Prepare a meal for the crew." },
+            { title: "Janitor", desc: "Clean up the common areas." },
+            { title: "Mechanic", desc: "Repair a broken engine part." },
+            { title: "Scientist", desc: "Analyze samples in the lab." },
+            { title: "Pilot", desc: "Check the ship's navigation system." },
+            { title: "Electrician", desc: "Restore power to a section of the ship." }
+        ];
+
+        const PREDEFINED_TASKS = [
+            "fix power", "air hocky fix", "cat tower scan", "chair fix",
+            "computer check", "TV scan", "check draws", "fix bookshelf",
+            "make bed", "pillows", "clean kitchen", "empty trash",
+            "repair engine", "calibrate sensors", "refuel generator",
+            "organize storage", "water plants", "wipe windows"
+        ];
+
+        let myId = localStorage.getItem('player-id') || Gun.text.random(16);
+        localStorage.setItem('player-id', myId);
+
+        let myName = localStorage.getItem('player-name') || '';
+        let myRole = 'crew';
+        let myRoleTitle = 'CREWMATE';
+        let isDead = false;
+        let isGM = false;
+        let targetId = null;
+        let hasUsedKill = false;
+        let currentGMId = null;
+        let gameStarted = false;
+        let myTaskList = [];
+
+        // Check if localhost (Only the laptop user sees the approval)
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('github.io');
+        // Note: For GitHub pages, we'll keep the admin panel hidden unless they use a secret or localhost
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            document.getElementById('admin-panel').style.display = 'block';
+        }
+
+        // --- CORE SYNC ---
+
+        // Listen for GM changes
+        state.get('gm_id').on(id => {
+            currentGMId = id;
+            isGM = (id === myId);
+            updateView();
+            refreshLobbyList(); // Refresh to hide new GM
+        });
+
+        // Listen for GM Requests (Admin only)
+        if (isLocal) {
+            state.get('gm_request').on(req => {
+                const panel = document.getElementById('gm-requests');
+                if (req && req.id) {
+                    panel.innerHTML = `
+                        Request from: <strong>${req.name}</strong> 
+                        <button onclick="approveGM('${req.id}')" style="background:var(--crewmate-blue); border:none; padding:4px; border-radius:4px; margin-left:10px;">APPROVE</button>
+                    `;
+                } else {
+                    panel.innerText = "No pending requests.";
+                }
+            });
+        }
+
+        // Listen for My Player State
+        state.get('players').get(myId).on(data => {
+            if (!data) return;
+            if (data.dead && !isDead) {
+                document.getElementById('sound-kill').play().catch(e => console.log("Audio block:", e));
+            }
+            isDead = data.dead;
+            myRole = data.role || 'crew';
+            myRoleTitle = data.roleTitle || 'CREWMATE';
+            hasUsedKill = data.killUsed;
+
+            // Sync tasks
+            myTaskList = [];
+            if (data.tasks) {
+                try { myTaskList = JSON.parse(data.tasks); } catch (e) { }
+            }
+
+            document.getElementById('dead-overlay').style.display = isDead ? 'flex' : 'none';
+            updatePlayerDashboard();
+            updatePlayerTasks();
+            updateRoleInfo(data.roleDesc);
+        });
+
+        // Listen for All Players (for lists)
+        let playerCache = {};
+        state.get('players').map().on((p, id) => {
+            if (!p) { delete playerCache[id]; }
+            else { playerCache[id] = p; }
+
+            if (isGM) refreshGMPlayerList();
+            if (myRole === 'imposter') refreshKillTargets();
+            refreshLobbyList();
+        });
+
+        // Inbox Listeners
+        state.get('messages').map().on((data, id) => {
+            if (isGM) refreshGMInbox();
+        });
+
+        // Approval Listeners
+        state.get('approvals').map().once((req, id) => {
+            if (isGM) refreshApprovalQueue();
+        });
+
+        // Listen for Global Meetings
+        state.get('meeting').on(data => {
+            const overlay = document.getElementById('meeting-overlay');
+            if (data && data.active) {
+                overlay.style.display = 'flex';
+                document.getElementById('meeting-caller').innerText = "CALLED BY: " + data.caller;
+                startMeetingTimer(data.startTime);
+                if (!isDead && data.phase === 'voting') {
+                    document.getElementById('voting-ui').style.display = 'block';
+                    refreshVotingList();
+                } else {
+                    document.getElementById('voting-ui').style.display = 'none';
+                }
+            } else {
+                overlay.style.display = 'none';
+            }
+        });
+
+        // Listen for Game Start
+        state.get('game_started').on(val => {
+            gameStarted = !!val;
+            updateView();
+            if (isGM) {
+                const btn = document.getElementById('gm-start-btn');
+                if (btn) {
+                    btn.innerText = gameStarted ? "STOP GAME" : "START GAME";
+                    btn.style.background = gameStarted ? "var(--imposter-red)" : "var(--gold)";
+                }
+            }
+        });
+
+        function startMeetingTimer(startTime) {
+            const update = () => {
+                const now = Date.now();
+                const diff = Math.floor((now - startTime) / 1000);
+                const discTime = 60; // 1 min disc
+                const voteTime = 120; // 2 min vote
+
+                const timerEl = document.getElementById('meeting-timer');
+                const phaseEl = document.getElementById('meeting-phase-title');
+
+                if (diff < discTime) {
+                    phaseEl.innerText = "DISCUSSION";
+                    const rem = discTime - diff;
+                    timerEl.innerText = `00:${rem.toString().padStart(2, '0')}`;
+                } else if (diff < (discTime + voteTime)) {
+                    phaseEl.innerText = "VOTING";
+                    const rem = (discTime + voteTime) - diff;
+                    const m = Math.floor(rem / 60);
+                    const s = rem % 60;
+                    timerEl.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    if (isGM) state.get('meeting').get('phase').put('voting');
+                } else {
+                    phaseEl.innerText = "MEETING ENDED";
+                    timerEl.innerText = "00:00";
+                    if (isGM) state.get('meeting').put({ active: false });
+                }
+            };
+            if (window.meetingInt) clearInterval(window.meetingInt);
+            window.meetingInt = setInterval(update, 1000);
+            update();
+        }
+
+        function refreshVotingList() {
+            const list = document.getElementById('voting-list');
+            list.innerHTML = '';
+            state.get('players').map().once((p, id) => {
+                if (!p || !p.name || p.dead || id === currentGMId) return;
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-dim';
+                btn.style.marginBottom = '5px';
+                btn.innerText = p.name;
+                btn.onclick = () => castVote(id, p.name);
+                list.appendChild(btn);
+            });
+        }
+
+        function castVote(targetId, targetName) {
+            state.get('messages').set({ sender: myName, text: "VOTED FOR: " + (targetName || 'SKIP'), time: "VOTE" });
+            document.getElementById('voting-ui').style.display = 'none';
+            alert("Vote recorded.");
+        }
+
+        // Inbox Listeners
+        state.get('messages').map().on((data, id) => {
+            if (isGM) refreshGMInbox();
+        });
+
+        // Approval Listeners
+        state.get('approvals').map().on(() => {
+            if (isGM) refreshApprovalQueue();
+        });
+
+        // --- ACTIONS ---
+
+        function joinGame() {
+            const nameInput = document.getElementById('join-name').value;
+            if (!nameInput) return alert("Enter a name!");
+            myName = nameInput;
+            localStorage.setItem('player-name', myName);
+            state.get('players').get(myId).put({ name: myName, dead: false, role: 'crew', killUsed: false, meetingsMax: 1 });
+            updateView();
+        }
+
+        function triggerEmergency() {
+            state.get('players').get(myId).once(p => {
+                if (p.meetingsMax <= 0) return alert("No more meetings left!");
+                state.get('players').get(myId).put({ meetingsMax: 0 });
+                state.get('meeting').put({ active: true, caller: myName, startTime: Date.now(), phase: 'discussion' });
+                document.getElementById('sound-alert').play().catch(e => console.log("Audio block:", e));
+            });
+        }
+
+        function requestReport() {
+            state.get('approvals').set({ type: 'report', applicant: myName, applicantId: myId });
+            document.getElementById('sound-alert').play().catch(e => console.log("Audio block:", e));
+            alert("Body report sent to GM for approval.");
+        }
+
+        function sendMessageToGM() {
+            const text = document.getElementById('player-msg-input').value;
+            if (!text) return;
+            state.get('messages').set({ sender: myName, text: text, time: new Date().toLocaleTimeString() });
+            document.getElementById('player-msg-input').value = '';
+            alert("Message sent secretly back to GM.");
+        }
+
+        function quitGame() {
+            if (!confirm("Are you sure you want to leave the ship?")) return;
+            if (isGM) {
+                state.get('gm_id').put(null);
+            }
+            state.get('players').get(myId).put(null);
+            localStorage.removeItem('player-name');
+            myName = '';
+            location.reload();
+        }
+
+        function claimGM() {
+            const code = document.getElementById('gm-code-input').value.trim().toUpperCase();
+            if (code === 'JEFF2001') {
+                if (!myName) {
+                    myName = "Game Master";
+                    localStorage.setItem('player-name', myName);
+                }
+                state.get('gm_id').put(myId);
+                isGM = true; // Immediate switch
+                alert("You are now the Game Master!");
+                updateView();
+            } else {
+                alert("Invalid GM Code. Try JEFF2001");
+            }
+        }
+
+        function startGame() {
+            state.get('game_started').put(!gameStarted);
+        }
+
+        function updateView() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if (isGM) {
+                document.getElementById('screen-gm').classList.add('active');
+            } else if (!myName) {
+                document.getElementById('screen-join').classList.add('active');
+            } else if (!gameStarted) {
+                // Return to join screen or a "Waiting for start" overlay if game not started
+                document.getElementById('screen-join').classList.add('active');
+                document.getElementById('join-status').innerText = "Waiting for GM to START match...";
+            } else {
+                document.getElementById('screen-dashboard').classList.add('active');
+                document.getElementById('join-status').innerText = "";
+            }
+        }
+
+        // --- GM ACTIONS ---
+
+        function refreshApprovalQueue() {
+            const list = document.getElementById('gm-approval-queue');
+            list.innerHTML = '';
+            let count = 0;
+            state.get('approvals').map().once((req, id) => {
+                if (!req) return;
+                count++;
+                const div = document.createElement('div');
+                div.className = 'approval-card';
+                let label = "";
+                let action = "";
+
+                if (req.type === 'kill') {
+                    label = `<strong>KILL REQUEST</strong>: ${req.applicant} -> ${req.targetName}`;
+                    action = () => {
+                        state.get('players').get(req.targetId).put({ dead: true });
+                        state.get('players').get(req.applicantId).put({ killUsed: true });
+                        state.get('approvals').get(id).put(null);
+                    };
+                } else if (req.type === 'task') {
+                    label = `<strong>TASK VERIFY</strong>: ${req.applicant} -> ${req.taskName}`;
+                    action = () => {
+                        // Mark task as done in player's task list
+                        state.get('players').get(req.applicantId).once(p => {
+                            let tasks = JSON.parse(p.tasks || "[]");
+                            tasks = tasks.map(t => t.name === req.taskName ? { ...t, done: true } : t);
+                            state.get('players').get(req.applicantId).get('tasks').put(JSON.stringify(tasks));
+                            state.get('approvals').get(id).put(null);
+                        });
+                    };
+                } else if (req.type === 'report') {
+                    label = `<strong>BODY REPORT</strong>: ${req.applicant} found a body`;
+                    action = () => {
+                        state.get('meeting').put({ active: true, caller: req.applicant + " (Report)", startTime: Date.now(), phase: 'discussion' });
+                        state.get('approvals').get(id).put(null);
+                        document.getElementById('sound-alert').play().catch(e => console.log("Audio block:", e));
+                    };
+                }
+
+                div.innerHTML = `<span>${label}</span> 
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="(${action})()" class="btn-primary" style="padding:4px 8px; border-radius:5px; border:none; color:black;">APPROVE</button>
+                        <button onclick="state.get('approvals').get('${id}').put(null)" class="btn-dim" style="padding:4px 8px; border-radius:5px; border:none;">DENY</button>
+                    </div>`;
+                list.appendChild(div);
+            });
+            if (count === 0) list.innerHTML = '<p style="color:var(--text-dim); font-size:0.9rem;">No pending approvals...</p>';
+        }
+
+        function refreshGMInbox() {
+            const box = document.getElementById('gm-inbox');
+            box.innerHTML = '';
+            state.get('messages').map().once((msg, id) => {
+                if (!msg) return;
+                const div = document.createElement('div');
+                div.className = 'chat-msg';
+                div.innerHTML = `<span style="color:var(--gold)">[${msg.time}] ${msg.sender}:</span> ${msg.text}`;
+                box.appendChild(div);
+            });
+        }
+
+        function resetGame() {
+            if (!confirm("Are you sure? System Wipe!")) return;
+            state.get('players').map().once((d, k) => state.get('players').get(k).put(null));
+            state.get('sabotage').put(null);
+            state.get('meeting').put(null);
+            state.get('game_started').put(null);
+            state.get('gm_id').put(null);
+            state.get('messages').map().once((d, k) => state.get('messages').get(k).put(null));
+            state.get('approvals').map().once((d, k) => state.get('approvals').get(k).put(null));
+            localStorage.removeItem('player-name');
+            alert("System Purged. Reloading...");
+            location.reload();
+        }
+
+        function assignRoles() {
+            const pIds = Object.keys(playerCache).filter(id => playerCache[id] && playerCache[id].name && id !== currentGMId);
+
+            if (pIds.length < 2) return alert("Need at least 2 players!");
+
+            const impId = pIds[Math.floor(Math.random() * pIds.length)];
+
+            pIds.forEach(id => {
+                let role, title, desc;
+                if (id === impId) {
+                    role = 'imposter';
+                    title = 'IMPOSTER';
+                    desc = 'Sabotage and kill the crew. You have one remote kill.';
+                } else {
+                    const r = PREDEFINED_ROLES[Math.floor(Math.random() * PREDEFINED_ROLES.length)];
+                    role = 'crew';
+                    title = r.title;
+                    desc = r.desc;
+                }
+
+                // Randomly pick 4 tasks
+                const shuffled = [...PREDEFINED_TASKS].sort(() => 0.5 - Math.random());
+                const selectedTasks = shuffled.slice(0, 4).map(t => ({ name: t, done: false }));
+
+                state.get('players').get(id).put({
+                    role: role,
+                    roleTitle: title,
+                    roleDesc: desc,
+                    dead: false,
+                    killUsed: false,
+                    meetingsMax: 1,
+                    tasks: JSON.stringify(selectedTasks)
+                });
+            });
+            alert("Roles and Tasks Assigned!");
+        }
+
+        // --- PLAYER ACTIONS ---
+
+        function toggleTask(taskName, isDone) {
+            if (isDone) return;
+            state.get('approvals').set({
+                type: 'task',
+                applicant: myName,
+                applicantId: myId,
+                taskName: taskName
+            });
+            alert("Verification request sent to GM.");
+        }
+
+        function triggerSabotage(type) {
+            state.get('sabotage').put({ active: true, type: type });
+        }
+
+        function resolveSabotage() {
+            state.get('sabotage').put({ active: false });
+            state.get('meeting').put({ active: false }); // Reset meeting if sabotage resolved? Maybe not.
+        }
+
+        function selectKillTarget(id) {
+            targetId = id;
+            document.querySelectorAll('.player-target-btn').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
+            const btn = document.getElementById('target-' + id);
+            if (btn) btn.style.borderColor = 'var(--imposter-red)';
+            document.getElementById('kill-btn').style.display = 'block';
+        }
+
+        function refreshLobbyList() {
+            const list = document.getElementById('lobby-player-list');
+            if (!list) return;
+            list.innerHTML = '';
+            Object.values(playerCache).forEach(p => {
+                if (!p || !p.name || p.id === currentGMId) return;
+                const div = document.createElement('div');
+                div.className = 'player-row';
+                div.innerHTML = `<span>${p.name} ${p.dead ? '<span class="status-pill status-dead">DEAD</span>' : ''}</span>`;
+                list.appendChild(div);
+            });
+        }
+
+        function requestKill() {
+            if (hasUsedKill) return alert("Already used your kill!");
+            if (!targetId) return;
+            state.get('players').get(targetId).once(p => {
+                state.get('approvals').set({ type: 'kill', applicant: myName, applicantId: myId, targetId: targetId, targetName: p.name });
+                alert("Targeting " + p.name + "... Request sent to GM.");
+            });
+            targetId = null;
+            document.getElementById('kill-btn').style.display = 'none';
+        }
+
+        // --- UI REFRESHERS ---
+
+        function refreshGMPlayerList() {
+            const list = document.getElementById('gm-player-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            Object.keys(playerCache).forEach(id => {
+                const p = playerCache[id];
+                if (!p || !p.name || id === currentGMId) return;
+                const div = document.createElement('div');
+                div.className = 'player-row';
+                div.innerHTML = `
+                    <span>${p.name} (${p.roleTitle || 'JOINING'})</span>
+                    <div>
+                        <span class="role-badge ${p.role === 'imposter' ? 'badge-imp' : 'badge-crew'}">${p.role}</span>
+                        <button class="btn-dim" style="display:inline; padding:5px; border-radius:5px;" onclick="state.get('players').get('${id}').get('dead').put(!${p.dead})">${p.dead ? 'REVIVE' : 'KILL'}</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function refreshGMTaskList() {
+            const list = document.getElementById('gm-task-list');
+            list.innerHTML = '';
+            // Use once on the map to avoid duplicate handlers piling up
+            state.get('tasks').map().once((t, id) => {
+                if (!t || !t.name) return;
+                const div = document.createElement('div');
+                div.className = 'player-row';
+                div.innerHTML = `<span style="${t.done ? 'text-decoration:line-through; opacity:0.5;' : ''}">${t.name}</span> 
+                    <button class="btn-dim" style="padding:4px; width:auto; margin:0;" onclick="state.get('tasks').get('${id}').put(null); refreshGMTaskList();">X</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        function refreshGMRoleList() {
+            const list = document.getElementById('gm-roles-list');
+            list.innerHTML = '';
+            state.get('roleDefs').map().once((r, id) => {
+                if (!r) return;
+                const div = document.createElement('div');
+                div.className = 'player-row';
+                div.innerHTML = `<span style="font-size:0.8rem;"><strong>${r.title}</strong>: ${r.desc}</span> <button class="btn-dim" style="padding:4px; width:auto; margin:0;" onclick="state.get('roleDefs').get('${id}').put(null); refreshGMRoleList();">X</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        function updatePlayerDashboard() {
+            const title = document.getElementById('my-role-title');
+            const crewView = document.getElementById('crew-tasks');
+            const impView = document.getElementById('imposter-powers');
+            const meetBtn = document.getElementById('meeting-btn');
+
+            title.innerText = myRoleTitle.toUpperCase();
+            title.style.color = (myRole === 'imposter') ? 'var(--imposter-red)' : 'var(--crewmate-blue)';
+
+            if (myRole === 'imposter') {
+                crewView.style.display = 'none';
+                impView.style.display = 'block';
+            } else {
+                crewView.style.display = 'block';
+                impView.style.display = 'none';
+            }
+
+            state.get('players').get(myId).once(p => {
+                if (p && p.meetingsMax <= 0) {
+                    meetBtn.style.opacity = '0.3';
+                    meetBtn.disabled = true;
+                    meetBtn.innerText = "MEETING USED";
+                } else {
+                    meetBtn.style.opacity = '1';
+                    meetBtn.disabled = false;
+                    meetBtn.innerText = "EMERGENCY MEETING";
+                }
+            });
+        }
+
+        function updateRoleInfo(customDesc) {
+            const desc = document.getElementById('my-role-desc');
+            if (customDesc) desc.innerText = customDesc;
+            else if (myRole === 'imposter') desc.innerText = "SABOTAGE AND KILL THE CREW (REQUIRES GM APPROVAL).";
+            else desc.innerText = "COMPLETE YOUR TASKS AND REPORT THEM TO THE GM.";
+        }
+
+        function updatePlayerTasks() {
+            const list = document.getElementById('my-task-list');
+            if (!list) return;
+            list.innerHTML = '';
+            myTaskList.forEach(t => {
+                const div = document.createElement('div');
+                div.className = `task-item ${t.done ? 'done' : ''}`;
+                div.innerHTML = `
+                    <div class="checkbox ${t.done ? 'checked' : ''}" onclick="toggleTask('${t.name}', ${t.done})"></div>
+                    <span style="font-size:1.1rem;">${t.name} ${t.done ? '(VERIFIED)' : ''}</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function refreshKillTargets() {
+            const list = document.getElementById('kill-targets-list');
+            if (!list) return;
+            list.innerHTML = '';
+            Object.keys(playerCache).forEach(id => {
+                const p = playerCache[id];
+                if (!p || !p.name || id === myId || p.dead || p.role === 'imposter' || id === currentGMId) return;
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-dim player-target-btn';
+                btn.id = 'target-' + id;
+                btn.innerText = p.name;
+                btn.onclick = () => selectKillTarget(id);
+                list.appendChild(btn);
+            });
+            if (hasUsedKill) {
+                list.innerHTML = "<p style='color:var(--text-dim); text-align:center;'>Remote Kill used.</p>";
+            }
+        }
+
+        // Initialize view
+        updateView();
+    </script>
+</body>
+
+</html>
